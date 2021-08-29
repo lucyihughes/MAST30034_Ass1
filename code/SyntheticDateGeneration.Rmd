@@ -15,6 +15,13 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
+packages required:
+```{r}
+install.packages('corrplot')
+
+```
+
+
 This chunk will generate a function that is used to generate a TC vector 
 
 ```{r}
@@ -66,6 +73,8 @@ for(i in 1:length(AV)) {
 # standardize TC Matrix 
 
 scaledTC <- scale(TC)
+colnames(scaledTC) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
+
 
 ```
 

@@ -15,11 +15,17 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
+libraries required
+```{r}
+library(corrplot)
+
+```
+
+
 Generate plot from standardized TC Matrix 
 
 ```{r pressure, echo=FALSE}
-
-pdf("../plots/TCMatrix.pdf")
+pdf("../plots/TCMatrix.pdf", width = 12, height = 7)
 
 # set up 2 x 3 plots 
 par(mfrow = c(2, 3)) 
@@ -28,7 +34,17 @@ x <- 1:n
 for(i in 1:length(AV)) {
   plot(x, scaledTC[, i], type = "l", main = paste("TC ", i), ylab = "y")
 }
+```
 
+Generate correlation matrix output and plot based on TC Matrix
+```{r pressure, echo=FALSE}
+# plot numeric correlation
+
+corrMatrix <- cor(scaledTC)
+
+pdf("../plots/corr_external_data.pdf")
+correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE')
+correlation
 dev.off()
 
 ```
