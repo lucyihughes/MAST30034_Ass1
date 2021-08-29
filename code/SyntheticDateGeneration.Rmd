@@ -1,0 +1,71 @@
+---
+title: "Assignment 1"
+author: "Lucy Hughes"
+date: "29/08/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+This chunk will generate a function that is used to generate a TC vector 
+
+```{r}
+# Boxcar function to generate TC Vectors 
+
+boxcar <- function(start, arrival, duration, n) {
+  
+  # all zero vector 
+  TC <- replicate(n, 0)
+  
+  # create arrival sequence vector
+  arrivals <- seq(start+1, n, by=arrival)
+  
+  # change 0s to 1s for certain intervals based on arrival and duration
+  for(i in arrivals) {
+    TC[i:(i+duration-1)] <- 1
+
+  }
+  return(TC)
+}
+
+
+
+```
+
+
+Generate TC Matrix based on set vectors, standardize this matrix for mean 0 
+and sd 1
+
+```{r}
+# given quantities 
+n <- 240
+AV <- c(0, 20, 0, 0, 0, 0)
+IV <- c(30, 45, 60, 40, 40, 40)
+duration <- c(15, 20, 25, 15, 20, 25)
+
+
+# generate TC Matrix  
+for(i in 1:length(AV)) {
+  if(i == 1) {
+    TC <- boxcar(AV[1], IV[1], duration[1], n)
+  }
+  else {
+    nextTC <- boxcar(AV[i], IV[i], duration[i], n)
+    TC <- matrix(c(TC, nextTC), nrow = n, ncol = i)
+  }
+}
+
+# standardize TC Matrix 
+
+scaledTC <- scale(TC)
+
+```
+
