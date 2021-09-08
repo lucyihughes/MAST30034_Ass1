@@ -18,6 +18,12 @@ When you click the **Knit** button a document will be generated that includes bo
 libraries required
 ```{r}
 library(corrplot)
+library(RColorBrewer)
+library(lares)
+library(ggplot2)
+library(reshape2)
+library(plyr)
+library(gridExtra)
 
 ```
 
@@ -42,11 +48,332 @@ Generate correlation matrix output and plot based on TC Matrix
 
 corrMatrix <- cor(scaledTC)
 
-pdf("../plots/corr_external_data.pdf")
-correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE')
+pdf("../plots/CorrTC.pdf", height = 4, width = 4)
+correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE', title = "TC Correlation Matirx", mar=c(0,0,2,0))
 correlation
 dev.off()
 
 ```
+plot tmpSM as pixels on heatmap 
+
+```{r pressure, echo=FALSE}
+# subset and plot all 6 SM matrix
+pdf("../plots/SMSubset.pdf", width = 12, height = 7)
+
+# set up 2 x 3 plots 
+par(mfrow = c(2, 3)) 
+
+for(i in 1:length(AV)) {
+  correlation <- corrplot(tmpSM[,, i], method = 'shade', 
+                          title = paste("estimated SM ", i),
+                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1.5, mar=c(0,0,2,0))
+}
+
+dev.off()
+
+
+```
+
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+# plot single correlation matrix 
+corrMatrix <- cor(t(SM))
+
+pdf("../plots/CorrSM.pdf", height = 4, width = 4)
+correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE', col=brewer.pal(n=8, name="BuPu"), title= "Correlation matrix SM", mar=c(0,0,2,0))
+correlation
+dev.off()
+
+
+
+```
+
+Plot correlation matrix to show if noise is correlated across sources for each noise type (temporal and spatial)
+```{r}
+
+# correlation matrix for spatial and temporal noise
+corrMatrixS <- cor(t(gammaS))
+corrMatrixT <- cor(gammaT)
+
+# correlation plots for spatial and temporal noise
+pdf("../plots/CorrNoise.pdf", width = 10, height = 4)
+
+par(mfrow = c(1, 2)) 
+
+corrplot(corrMatrixS, method = 'shade', order = 'AOE', title = "Temporal Noise Correlation Matrix", mar=c(0,0,2,0))
+
+corrplot(corrMatrixT, method = 'shade', order = 'AOE', title = "Spatial Noise Correlation Matrix", mar=c(0,0,2,0))
+
+
+
+dev.off()
+
+
+```
+
+Plot histograms for both types of noise (spatial and temporal)
+```{r}
+
+# correlation plots for spatial and temporal noise
+pdf("../plots/HistogramNoise.pdf", width = 10, height = 4)
+
+par(mfrow = c(1, 2)) 
+
+hist(gammaT)
+hist(gammaS)
+
+dev.off()
+
+```
+Plot correlation matrix of product of noise 
+```{r}
+# plot single correlation matrix 
+corrMatrix <- cor(noiseTS[, 1:8])
+
+
+pdf("../plots/CorrnoiseTS.pdf", height = 4, width = 4)
+correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE', col=brewer.pal(n=8, name="BuPu"), title = "(Tt)*(Ts) Correlation Matrix subset", mar=c(0,0,2,0))
+correlation
+dev.off()
+
+
+
+```
+
+Plot timeseries of at least 100 variables from X
+
+```{r}
+
+set.seed(123)
+x5 <- sample(1:n, 100, replace=F)
+x5
+sampleX <- X[, x5]
+
+dfSampleX <- melt(sampleX)
+dfSampleX$Var2 <- as.factor(dfSampleX$Var2)
+
+pdf("../plots/TimeseriesX.pdf", width = 7, height = 4)
+
+
+ggplot(dfSampleX, aes(x=Var1, y=value, color=Var2)) +
+  geom_line() +
+  ggtitle( "Sample X Timeseries") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+dev.off()
+
+
+```
+
+plot correlation of all 441 variables in X
+```{r}
+corrMatrix <- cor(X)
+
+
+pdf("../plots/CorrX.pdf", height = 8, width = 8)
+correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE', col=brewer.pal(n=8, name="BuPu"), title = "X = (TC+Tt)*(SM+Ts) Correlation Matrix", mar=c(0,0,2,0), tl.pos = 'n')
+correlation
+dev.off()
+
+```
+plotting least square regression estimates for A and D
+```{r}
+pdf("../plots/LSE.pdf", width = 12, height = 7)
+
+# set up 2 x 3 plots 
+par(mfrow = c(3, 4)) 
+
+x <- 1:n
+for(i in 1:length(AV)) {
+  plot(x, Dlsr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y")
+  corrplot(tmpAlsr[,, i], method = 'shade', 
+                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1,
+           title = paste("estimated SM ", i), mar=c(0,0,2,0))
+  
+}
+dev.off()
+
+```
+
+scatter plot
+```{r}
+
+pdf("../plots/scatter.pdf")
+
+x <- Dlsr.2[, 3]
+y <- scaledX.2[, 30]
+plot(x, y, main= "Relationship between D3 and X30", xlab = "D column 3", ylab = "X column 30")
+
+dev.off()
+
+```
+
+plotting ridge regression vector comparison 
+```{r}
+
+pdf("../plots/ridgeRegression.pdf")
+
+x <- 1:V
+RidgeRegression <- t(ArrSet)[, 1]
+LeastSqaureEstimate <- t(Alsr)[, 1]
+vecComp <- data.frame(x, RidgeRegression, LeastSqaureEstimate)
+vecComp <- melt(vecComp, id.vars = "x")
+
+
+ggplot(vecComp, aes(x=x, y=value, color=variable)) +
+  geom_line() +
+  ggtitle( "A' estimate ridge regression vs least square estimate") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+dev.off()
+
+
+```
+
+plot mse against rho to choose best value of rho for lasso regression 
+```{r}
+
+
+
+pdf("../plots/lassoRegression.pdf")
+
+LR <- data.frame(rho, MSE)
+LRsubset <- LR[9:length(MSE),]
+
+
+
+# full set of rho values
+plot1 <- ggplot(LR, aes(x=rho, y=MSE)) +
+  geom_line(color = "red") +
+  geom_point(color = "red") +
+  ggtitle( "MSE for value of Rho") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme_minimal()
+
+# minimized set of rho to view point of inflection 
+plot2 <- ggplot(LRsubset, aes(x=rho, y=MSE)) +
+  geom_line(color = "red") +
+  geom_point(color = "red") +
+  ggtitle( "MSE for value of Rho subset") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+
+dev.off()
+
+
+```
+
+plot difference in D and A between Lasso regression and ridge regression 
+
+```{r}
+
+pdf("../plots/LRvsRRTC.pdf")
+
+
+x <- 1:n
+tmpD <- data.frame(x, Dlr)
+tmpD <- melt(tmpD, id=c("x"))
+tmpD$D <- "LR"
+
+tmpDrr <- data.frame(x, Drr)
+tmpDrr <- melt(tmpDrr, id=c("x"))
+tmpDrr$D <- "RR"
+
+tmpD <- rbind(tmpD,tmpDrr)
+
+ggplot(tmpD, aes(x =x, y= value)) +
+  geom_line() +
+  ggtitle(paste("Estimated TC Lasso Regression vs Ridge Regression")) + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_grid(variable ~ D)
+
+dev.off()
+
+
+```
+lasso regression vs ridge regression A matrix visualization 
+```{r}
+pdf("../plots/LRvsRRA.pdf", height = 15,width=5)
+
+# set up 6 x 4 plots 
+par(mfrow = c(6, 2))
+
+
+x <- 1:n
+for(i in 1:length(AV)) {
+  corrplot(tmpAlr[,, i], method = 'shade', 
+                          col=brewer.pal(n=8, name="BuPu"), tl.cex = .5,
+           title = paste("LR estimated SM ", i), mar=c(0,0,2,0), 
+            is.corr = FALSE)
+  corrplot(tmpArr[,, i], method = 'shade', 
+                          col=brewer.pal(n=8, name="BuPu"), tl.cex = .5,
+           title = paste("RR estimated SM ", i), mar=c(0,0,2,0), 
+           is.corr = FALSE)
+  
+}
+dev.off()
+
+
+
+```
+plot eigenvalues of PCs
+```{r}
+pdf("../plots/EigenValues.pdf")
+
+x <- 1:length(AV)
+
+plot(x, svd$d[1:6], type = "o", main = "PC Eigenvalues", ylab = "Eigenvalues", xlab = "PC")
+  
+dev.off()
+
+
+```
+
+plot regressors in Z against source TCs
+
+```{r}
+pdf("../plots/ZvsTC.pdf")
+
+
+x <- 1:n
+tmpTC <- data.frame(x, scaledTC)
+tmpTC <- melt(tmpTC, id=c("x"))
+tmpTC$source <- "TC"
+
+tmpZ <- data.frame(x, svd$u)
+tmpZ <- melt(tmpZ, id=c("x"))
+tmpZ$source <- "Z"
+
+tmpZ <- rbind(tmpTC,tmpZ)
+
+ggplot(tmpZ, aes(x =x, y= value)) +
+  geom_line() +
+  ggtitle(paste("Source TCs vs Regressor Z")) + 
+  theme(plot.title = element_text(hjust = 0.5)) +
+  facet_grid(variable ~ source)
+
+dev.off()
+
+```
+
+PCR plots to analyse performance of estimated TC and SM
+```{r}
+pdf("../plots/PCR.pdf", width = 12, height = 7)
+
+# set up 2 x 3 plots 
+par(mfrow = c(3, 4)) 
+
+x <- 1:n
+for(i in 1:length(AV)) {
+  plot(x, Dpcr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y")
+  corrplot(tmpApcr[,, i], method = 'shade', 
+                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1,
+           title = paste("estimated SM ", i), mar=c(0,0,2,0))
+  
+}
+dev.off()
+```
+

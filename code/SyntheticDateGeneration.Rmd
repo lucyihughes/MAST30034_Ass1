@@ -18,7 +18,24 @@ When you click the **Knit** button a document will be generated that includes bo
 packages required:
 ```{r}
 install.packages('corrplot')
+install.packages('pracma')
+install.packages('ggplot2')
+install.packages('RColorBrewer')
+install.packages('lares')
+install.packages("plyr")
+install.packages('dplyr')
+install.packages('SAVER')
+install.packages('gridExtra')
+install.packages('MASS')
 
+```
+load liabraries 
+```{r}
+library(pracma)
+library(plyr)
+library(dplyr)
+library(SAVER)
+library(MASS)
 ```
 
 
@@ -75,6 +92,242 @@ for(i in 1:length(AV)) {
 scaledTC <- scale(TC)
 colnames(scaledTC) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
 
+
+```
+
+
+Generate tmpSM array to represent pixels 
+```{r}
+# Generating array of pixel matrices 
+
+zeros <- matrix(0, 21, 21)
+SM1 <- zeros
+SM1[2:6, 2:6] <- 1
+SM2 <- zeros
+SM2[2:6, 15:19] <- 1
+SM3 <- zeros
+SM3[8:13, 2:6] <- 1
+SM4 <- zeros
+SM4[8:13, 15:19] <- 1
+SM5 <- zeros
+SM5[15:19, 2:6] <- 1
+SM6 <- zeros
+SM6[15:19, 15:19] <- 1
+
+tmpSM <- array(c(SM1, SM2, SM3, SM4, SM5, SM6), dim = c(21,21,6))
+
+SM <- matrix(tmpSM, 441, 6)
+colnames(SM) <- c('SM1', 'SM2', 'SM3', 'SM4', 'SM5', 'SM6')
+SM <- t(SM)
+
+```
+
+Generate zero mean white Guassian noise for temporal and spatial sources 
+```{r}
+
+# Guassian white noise in form of matrices 
+set.seed(123)
+gammaT <- matrix(rnorm(240*6, mean = 0, sd = 0.25), 240, 6)
+
+gammaS <- matrix(rnorm(6*441, mean = 0, sd = 0.015), 6, 441)
+
+
+# combining white noise with spatial and temporal generated
+noiseT <- scaledTC + gammaT
+
+noiseS <- SM + gammaS
+
+#product of noise variables 
+noiseTS <- gammaT %*% gammaS
+
+X <- noiseT %*% noiseS
+scaledX <- scale(X)
+
+```
+
+function to reshape A from matrix to vector of matrix 
+```{r}
+reshapeA <- function(A) {
+  for(i in 1:length(AV)) {
+    x <- matrix(t(A)[, i], nrow = 21)
+    nam <- paste("A", i, sep="")
+    assign(nam, matrix(dplyr::case_when(x > 1 ~ 1.0,
+    x < -1.0 ~ -1.0, TRUE ~ x), 21, 21))
+  }
+  tmpA <- array(c(A1, A2, A3, A4, A5, A6), dim = c(21,21,6))
+
+  return(tmpA)
+}
+
+```
+
+
+
+Using Least Square Regression to estiamte A and D 
+```{r}
+# use formula Alsr = (DtD)^-1DtX
+# D = TC (scaled) 
+
+Alsr <- abs(solve(t(scaledTC) %*% scaledTC) %*% t(scaledTC) %*% scaledX)
+
+# use formula Dlsr = XAlsrt
+Dlsr <- scaledX %*% t(Alsr)
+
+# make individual matrices checking for out of range numbers due to noise
+
+tmpAlsr <- reshapeA(Alsr)
+
+
+```
+
+Estimate ridge regression parameters
+```{r}
+# testing if lambda meets condition and select largest value
+
+lambda <- 0.6
+V <- 441
+
+Arr <- abs(solve(t(scaledTC) %*% scaledTC + lambda*V*diag(6)) %*% 
+    t(scaledTC) %*% scaledX)
+Drr <- scaledX %*% t(Arr)
+  
+Ctlsr <- calc.maxcor(scaledTC, Dlsr)
+Ctrr <- calc.maxcor(scaledTC, Drr)
+print(sum(Ctrr))
+
+print(sum(Ctlsr) < sum(Ctrr))
+  
+
+# checking lambda set at 1000
+
+setLambda <- 1000
+
+ArrSet <- abs(solve(t(scaledTC) %*% scaledTC + setLambda*V*diag(6)) %*%
+  t(scaledTC) %*% scaledX)
+
+
+
+```
+
+R code for LR from assignment spec 
+```{r}
+lassoReg <- function(Rho, N, x1, x2, nsrcs, X, TC) {
+# code for Alr estimate 
+  step <- 1 / ( norm(TC%*%t(TC) ) * 1.1 )
+  thr <- Rho *N* step
+  Ao <- matrix(0, nsrcs, 1 )
+  A <- matrix(0 ,nsrcs ,1 )
+  Alr <- matrix(0 ,nsrcs ,x1*x2 )
+    
+  for( k in 1:(x1*x2)){
+
+    A <- Ao+step * (t(TC)%*%(X[ , k] - (TC%*%Ao)))
+    A <- (1/(1 + thr)) * (sign(A)*pmax(replicate(nsrcs, 0), abs(A) - thr))
+      
+    for (i in 1:10){
+
+      Ao <- A
+      A <- Ao + step * (t(TC)%*%(X[ , k] - (TC%*%Ao)))
+      A <- (1/(1 + thr)) * (sign(A)*pmax(replicate(nsrcs, 0), abs(A) - thr))
+        
+    }
+    Alr [, k] <- A
+  }
+  
+  return(Alr)
+}
+
+
+```
+
+
+use this code to estimate A and D using lasso regression 
+```{r}
+# values of rho 
+rho <- seq(0, 1, 0.05)
+N <- 240
+x1 <- 21
+x2 <- 21
+nsrcs <- 6
+MSE = c()
+
+# for loop over values of rho 
+for(j in 1:length(rho)) {
+  sumMSE <- 0
+  # for loop over 10 realizations 
+  for(l in 1:10){
+    # recreate X gamma values will vary due to random generation
+    gammaTlr <- matrix(rnorm(240*6, mean = 0, sd = 0.25), 240, 6)
+    gammaSlr <- matrix(rnorm(6*441, mean = 0, sd = 0.015), 6, 441)
+    
+    # combining white noise with spatial and temporal generated
+    noiseTlr <- scaledTC + gammaTlr
+    noiseSlr <- SM + gammaSlr
+    
+    # form X and standardize 
+    Xlr <- noiseTlr %*% noiseSlr
+    scaledXlr <- scale(Xlr)
+    
+    # Logistic Regression 
+    Alr <- abs(lassoReg(rho[j], N, x1, x2, nsrcs, scaledXlr, scaledTC))
+
+    # dlr and mse based on X
+    Dlr <- scaledXlr %*% t(Alr)
+    mse <- sum(colSums(t(scaledXlr - Dlr %*% Alr) %*% (scaledXlr - 
+                                                         Dlr %*% Alr)))/(N*V)
+    # sum mse over all realizations 
+    sumMSE <- sumMSE + mse
+  }
+  avgMSE <- sumMSE/10
+  MSE[j] <- avgMSE
+
+  
+}
+
+```
+
+lasso regression vs ridge regression 
+
+```{r}
+
+# rho set at inflection point 
+rhoSelect <- 0.65
+
+# run lasso regression with selected rho 
+Alr <- abs(lassoReg(rhoSelect, N, x1, x2, nsrcs, scaledX, scaledTC))
+Dlr <- scaledX %*% t(Alr)
+colnames(Dlr) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
+
+# correlation vectors 
+Csrr <- calc.maxcor(SM, Arr)
+Ctrr <- calc.maxcor(scaledTC, Drr)
+Ctlr <- calc.maxcor(scaledTC, Dlr)
+Cslr <- calc.maxcor(SM, Alr)
+
+sum(Ctlr) > sum(Ctrr)
+sum(Cslr) > sum(Csrr)
+
+tmpAlr <- reshapeA(Alr)
+tmpArr <- reshapeA(Arr)
+
+
+```
+Estimate principal components of TCs 
+```{r}
+# run svd to get pc
+svd <- svd(scaledX, 6, 6)
+
+# focusing on first 6 pc 
+d <- diag(svd$d)[1:6, 1:6]
+PC <- svd$u %*% d
+
+colnames(svd$u) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
+
+rhoSelect <- 0.001
+Apcr <- abs(lassoReg(rhoSelect, N, x1, x2, nsrcs, scaledX, svd$u))
+Dpcr <- scaledX %*% t(Apcr)
+colnames(Dlr) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
+tmpApcr <- reshapeA(Apcr)
 
 ```
 
