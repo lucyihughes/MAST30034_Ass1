@@ -24,6 +24,7 @@ library(ggplot2)
 library(reshape2)
 library(plyr)
 library(gridExtra)
+library(Rfast)
 
 ```
 
@@ -38,7 +39,7 @@ par(mfrow = c(2, 3))
 
 x <- 1:n
 for(i in 1:length(AV)) {
-  plot(x, scaledTC[, i], type = "l", main = paste("TC ", i), ylab = "y")
+  plot(x, scaledTC[, i], type = "l", main = paste("TC ", i), ylab = "y", cex.lab=3, cex.axis=2, cex.main=3, cex.sub=2)
 }
 ```
 
@@ -66,7 +67,7 @@ par(mfrow = c(2, 3))
 for(i in 1:length(AV)) {
   correlation <- corrplot(tmpSM[,, i], method = 'shade', 
                           title = paste("estimated SM ", i),
-                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1.5, mar=c(0,0,2,0))
+                          col=brewer.pal(n=8, name="BuPu"), mar=c(0,0,2,0),  cex.lab=1.5, cex.axis=2, cex.main=2, cex.sub=2, tl.cex=1.5, cl.cex = 1.5)
 }
 
 dev.off()
@@ -154,30 +155,46 @@ sampleX <- X[, x5]
 dfSampleX <- melt(sampleX)
 dfSampleX$Var2 <- as.factor(dfSampleX$Var2)
 
-pdf("../plots/TimeseriesX.pdf", width = 7, height = 4)
+pdf("../plots/TimeseriesX.pdf", width = 7, height = 5)
 
 
 ggplot(dfSampleX, aes(x=Var1, y=value, color=Var2)) +
   geom_line() +
   ggtitle( "Sample X Timeseries") +
-  theme(plot.title = element_text(hjust = 0.5))
+  theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
 
 dev.off()
 
 
 ```
 
-plot correlation of all 441 variables in X
+plot variance of all 441 variables in X
 ```{r}
-corrMatrix <- cor(X)
+variance <- colVars(X)
 
 
-pdf("../plots/CorrX.pdf", height = 8, width = 8)
-correlation <- corrplot(corrMatrix, method = 'shade', order = 'AOE', col=brewer.pal(n=8, name="BuPu"), title = "X = (TC+Tt)*(SM+Ts) Correlation Matrix", mar=c(0,0,2,0), tl.pos = 'n')
-correlation
+pdf("../plots/variance.pdf", height = 8, width = 8)
+hist(variance, breaks = 15)
 dev.off()
 
 ```
+plot histograms of error terms for X
+```{r}
+pdf("../plots/Xhistograms.pdf", width = 8, height= 5)
+par(mfrow = c(1, 2)) 
+hist(noiseTS, freq =F, main="gammaT * gammaS", xlab = "distribution", tl.cex=0.3)
+x <- seq(min(noiseTS), max(noiseTS), length.out= 10000)
+lines(x, dnorm(x, mean=mean(noiseTS), sd=sd(noiseTS)), 
+      col="darkblue" , lwd=4)
+hist(error, freq = F, main = "All 'error' terms")
+x <- seq(min(error), max(error), length.out= 10000)
+lines(x, dnorm(x, mean=mean(error), sd=sd(error)), 
+      col="darkblue", xlab = "distribution", tl.cex=0.3, lwd = 4)
+
+```
+
+
+
 plotting least square regression estimates for A and D
 ```{r}
 pdf("../plots/LSE.pdf", width = 12, height = 7)
@@ -187,9 +204,9 @@ par(mfrow = c(3, 4))
 
 x <- 1:n
 for(i in 1:length(AV)) {
-  plot(x, Dlsr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y")
+  plot(x, Dlsr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y",cex.lab=2, cex.axis=2, cex.main=2, cex.sub = 1.5)
   corrplot(tmpAlsr[,, i], method = 'shade', 
-                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1,
+                          col=brewer.pal(n=8, name="BuPu"), cex.lab=1.5, cex.axis=1.5, cex.main=2, cex.sub = 1.5,, cl.cex = 1.5,
            title = paste("estimated SM ", i), mar=c(0,0,2,0))
   
 }
@@ -197,14 +214,16 @@ dev.off()
 
 ```
 
+
+
 scatter plot
 ```{r}
 
 pdf("../plots/scatter.pdf")
 
-x <- Dlsr.2[, 3]
-y <- scaledX.2[, 30]
-plot(x, y, main= "Relationship between D3 and X30", xlab = "D column 3", ylab = "X column 30")
+y <- Dlsr[, 3]
+x <- scaledX[, 30]
+plot(x, y, main= "Relationship between D3 and X30", ylab = "D column 3", xlab = "X column 30", , cex.lab=2.5, cex.axis=2.5, cex.main=2.5, cex.sub=2.5)
 
 dev.off()
 
@@ -213,7 +232,7 @@ dev.off()
 plotting ridge regression vector comparison 
 ```{r}
 
-pdf("../plots/ridgeRegression.pdf")
+pdf("../plots/ridgeRegression.pdf", width = 6)
 
 x <- 1:V
 RidgeRegression <- t(ArrSet)[, 1]
@@ -224,8 +243,9 @@ vecComp <- melt(vecComp, id.vars = "x")
 
 ggplot(vecComp, aes(x=x, y=value, color=variable)) +
   geom_line() +
-  ggtitle( "A' estimate ridge regression vs least square estimate") +
-  theme(plot.title = element_text(hjust = 0.5))
+  ggtitle( "A' estimate RR vs LSE") +
+  theme(plot.title = element_text(hjust = 0.5), 
+        text = element_text(size=20))
 
 dev.off()
 
@@ -237,10 +257,10 @@ plot mse against rho to choose best value of rho for lasso regression
 
 
 
-pdf("../plots/lassoRegression.pdf")
+pdf("../plots/lassoRegression.pdf", width = 8)
 
 LR <- data.frame(rho, MSE)
-LRsubset <- LR[9:length(MSE),]
+LRsubset <- LR[12:length(MSE),]
 
 
 
@@ -249,16 +269,17 @@ plot1 <- ggplot(LR, aes(x=rho, y=MSE)) +
   geom_line(color = "red") +
   geom_point(color = "red") +
   ggtitle( "MSE for value of Rho") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme_minimal()
+  theme(plot.title = element_text(hjust = 0.5),
+        text = element_text(size=15), , axis.text =element_text(size=20)) 
+
 
 # minimized set of rho to view point of inflection 
 plot2 <- ggplot(LRsubset, aes(x=rho, y=MSE)) +
   geom_line(color = "red") +
   geom_point(color = "red") +
   ggtitle( "MSE for value of Rho subset") +
-  theme(plot.title = element_text(hjust = 0.5)) +
-  theme_minimal()
+  theme(plot.title = element_text(hjust = 0.5), text = element_text(size=15), axis.text =element_text(size=20) ) 
+
 grid.arrange(plot1, plot2, ncol = 2)
 
 dev.off()
@@ -305,11 +326,11 @@ par(mfrow = c(6, 2))
 x <- 1:n
 for(i in 1:length(AV)) {
   corrplot(tmpAlr[,, i], method = 'shade', 
-                          col=brewer.pal(n=8, name="BuPu"), tl.cex = .5,
+                          col=brewer.pal(n=8, name="BuPu"), cex.lab=1.5, cex.axis=1.5, cex.main=2, cex.sub = 1.5,cl.cex = 1.5,
            title = paste("LR estimated SM ", i), mar=c(0,0,2,0), 
             is.corr = FALSE)
   corrplot(tmpArr[,, i], method = 'shade', 
-                          col=brewer.pal(n=8, name="BuPu"), tl.cex = .5,
+                          col=brewer.pal(n=8, name="BuPu"), cex.lab=1.5, cex.axis=1.5, cex.main=2, cex.sub = 1.5,cl.cex = 1.5,
            title = paste("RR estimated SM ", i), mar=c(0,0,2,0), 
            is.corr = FALSE)
   
@@ -368,9 +389,9 @@ par(mfrow = c(3, 4))
 
 x <- 1:n
 for(i in 1:length(AV)) {
-  plot(x, Dpcr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y")
+  plot(x, Dpcr[, i], type = "l", main = paste("estimated TC ", i), ylab = "y", cex.lab=2, cex.axis=2, cex.main=2, cex.sub = 1.5)
   corrplot(tmpApcr[,, i], method = 'shade', 
-                          col=brewer.pal(n=8, name="BuPu"), tl.cex = 1,
+                          col=brewer.pal(n=8, name="BuPu"), cex.lab=1.5, cex.axis=1.5, cex.main=2, cex.sub = 1.5,cl.cex = 1.5,
            title = paste("estimated SM ", i), mar=c(0,0,2,0))
   
 }

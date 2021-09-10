@@ -27,7 +27,7 @@ install.packages('dplyr')
 install.packages('SAVER')
 install.packages('gridExtra')
 install.packages('MASS')
-
+install.packages('Rfast')
 ```
 load liabraries 
 ```{r}
@@ -36,6 +36,7 @@ library(plyr)
 library(dplyr)
 library(SAVER)
 library(MASS)
+library(SAVER)
 ```
 
 
@@ -140,7 +141,14 @@ noiseS <- SM + gammaS
 #product of noise variables 
 noiseTS <- gammaT %*% gammaS
 
-X <- noiseT %*% noiseS
+error <- scaledTC %*% gammaS + gammaT %*% SM + noiseTS
+
+#scaledX <- scale(X)
+
+
+
+# X leaving out products TC%*%gammat and SM%*%gammas
+X <- scaledTC %*% SM + gammaT %*% gammaS
 scaledX <- scale(X)
 
 ```
@@ -184,16 +192,16 @@ Estimate ridge regression parameters
 ```{r}
 # testing if lambda meets condition and select largest value
 
-lambda <- 0.6
+lambda <- 0.001
 V <- 441
 
 Arr <- abs(solve(t(scaledTC) %*% scaledTC + lambda*V*diag(6)) %*% 
     t(scaledTC) %*% scaledX)
 Drr <- scaledX %*% t(Arr)
   
-Ctlsr <- calc.maxcor(scaledTC, Dlsr)
-Ctrr <- calc.maxcor(scaledTC, Drr)
-print(sum(Ctrr))
+Ctlsr <- sum(apply(cor(scaledTC, Dlsr), 2, max))
+Ctrr <- sum(apply(cor(scaledTC, Drr), 2, max))
+
 
 print(sum(Ctlsr) < sum(Ctrr))
   
@@ -291,7 +299,7 @@ lasso regression vs ridge regression
 ```{r}
 
 # rho set at inflection point 
-rhoSelect <- 0.65
+rhoSelect <- 0.5
 
 # run lasso regression with selected rho 
 Alr <- abs(lassoReg(rhoSelect, N, x1, x2, nsrcs, scaledX, scaledTC))
@@ -299,10 +307,10 @@ Dlr <- scaledX %*% t(Alr)
 colnames(Dlr) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
 
 # correlation vectors 
-Csrr <- calc.maxcor(SM, Arr)
-Ctrr <- calc.maxcor(scaledTC, Drr)
-Ctlr <- calc.maxcor(scaledTC, Dlr)
-Cslr <- calc.maxcor(SM, Alr)
+Csrr <- sum(apply(cor(t(SM), t(Arr)), 2, max))
+Ctrr <- sum(apply(cor(scaledTC, Drr), 2, max))
+Ctlr <- sum(apply(cor(scaledTC, Dlr), 2, max))
+Cslr <- sum(apply(cor(t(SM), t(Alr)), 2, max))
 
 sum(Ctlr) > sum(Ctrr)
 sum(Cslr) > sum(Csrr)
@@ -315,11 +323,11 @@ tmpArr <- reshapeA(Arr)
 Estimate principal components of TCs 
 ```{r}
 # run svd to get pc
-svd <- svd(scaledX, 6, 6)
+svd <- svd(scaledTC, 6, 6)
 
 # focusing on first 6 pc 
 d <- diag(svd$d)[1:6, 1:6]
-PC <- svd$u %*% d
+
 
 colnames(svd$u) <- c("TC1", "TC2", "TC3", "TC4", "TC5", "TC6")
 
